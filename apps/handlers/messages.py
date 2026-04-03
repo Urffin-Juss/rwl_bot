@@ -1,14 +1,14 @@
+from collections import defaultdict
+import time
+
 from aiogram import Router
 from aiogram.types import Message
 
 from apps.services.antispam import check_message_for_spam
 from apps.utils.logger import logger
-from collections import defaultdict
-import time
 
 
 router = Router()
-
 recent_messages = defaultdict(list)
 
 
@@ -16,39 +16,11 @@ async def is_admin(message: Message) -> bool:
     if not message.from_user:
         return False
 
-    text = message.text or message.caption or ""
-    user_id = message.from_user.id
-    now = time.time()
-
-    recent_messages[user_id] = [
-        (t, txt) for t, txt in recent_messages[user_id]
-        if now - t < 10
-    ]
-
-    for t, txt in recent_messages[user_id]:
-        if txt == text:
-            logger.info(
-                f"DUPLICATE | chat_id={message.chat.id} | "
-                f"user_id={user_id} | message_id={message.message_id} | text={text}"
-            )
-            try:
-                await message.delete()
-            except Exception as error:
-                logger.exception(
-                    f"DELETE_ERROR_DUPLICATE | chat_id={message.chat.id} | "
-                    f"user_id={user_id} | message_id={message.message_id} | error={error}"
-                )
-            return
-
-    recent_messages[user_id].append((now, text))
-
     member = await message.bot.get_chat_member(
         chat_id=message.chat.id,
         user_id=message.from_user.id,
     )
     return member.status in ("administrator", "creator")
-
-
 
 
 def build_log_line(
@@ -87,21 +59,81 @@ async def handle_all_messages(message: Message) -> None:
         return
 
     text = message.text or message.caption or ""
+    user_id = message.from_user.id
+    now = time.time()
+
+    # чистим старые сообщения пользователя за последние 10 секунд
+    recent_messages[user_id] = [
+        (t, txt) for t, txt in recent_messages[user_id]
+        if now - t < 10
+    ]
+
+    # проверка на дубликат
+    for t, txt in recent_messages[user_id]:
+        if txt.strip() == text.strip():
+            logger.info(
+                f"DUPLICATE | chat_id={message.chat.id} | "
+                f"user_id={user_id} | message_id={message.message_id} | text={text}"
+            )
+            try:
+                await message.delete()
+                logger.info(
+                    f"DELETED_DUPLICATE | chat_id={message.chat.id} | "
+                    f"user_id={user_id} | message_id={message.message_id}"
+                )
+            except Exception as error:
+                logger.exception(
+                    f"DELETE_ERROR_DUPLICATE | chat_id={message.chat.id} | "
+                    f"user_id={user_id} | message_id={message.message_id} | error={error}"
+                )
+            return
+
+    # сохраняем текущее сообщение
+    recent_messages[user_id].append((now, text))
+
+    has_media = bool(
+        message.photo
+        or message.video
+        or message.document
+        or message.animation
+    )
+
+    extra_score = 0
+    extra_reasons = []
+
+    if has_media and not text.strip():
+        extra_score += 2
+        extra_reasons.append("media_no_text")
+
+    if has_media and "@" in text:
+        extra_score += 2
+        extra_reasons.append("media_username")
+
     result = check_message_for_spam(text)
 
-    verdict = "SPAM" if result.is_spam else "OK"
+    final_score = result.score + extra_score
+    final_reason_parts = []
+
+    if result.reason:
+        final_reason_parts.append(result.reason)
+
+    if extra_reasons:
+        final_reason_parts.append(", ".join(extra_reasons))
+
+    final_reason = ", ".join(final_reason_parts)
+    verdict = "SPAM" if final_score >= 3 else "OK"
 
     logger.info(
         build_log_line(
             message=message,
             verdict=verdict,
-            score=result.score,
-            reason=result.reason,
+            score=final_score,
+            reason=final_reason,
             text=text,
         )
     )
 
-    if not result.is_spam:
+    if final_score < 3:
         return
 
     try:
@@ -109,7 +141,7 @@ async def handle_all_messages(message: Message) -> None:
         logger.info(
             f"DELETED | chat_id={message.chat.id} | "
             f"message_id={message.message_id} | "
-            f"user_id={message.from_user.id} | score={result.score}"
+            f"user_id={message.from_user.id} | score={final_score}"
         )
     except Exception as error:
         logger.exception(
