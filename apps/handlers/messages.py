@@ -62,31 +62,7 @@ async def handle_all_messages(message: Message) -> None:
     user_id = message.from_user.id
     now = time.time()
 
-    # чистим старые сообщения пользователя за последние 10 секунд
-    recent_messages[user_id] = [
-        (t, txt) for t, txt in recent_messages[user_id]
-        if now - t < 10
-    ]
 
-    # проверка на дубликат
-    for t, txt in recent_messages[user_id]:
-        if txt.strip() == text.strip():
-            logger.info(
-                f"DUPLICATE | chat_id={message.chat.id} | "
-                f"user_id={user_id} | message_id={message.message_id} | text={text}"
-            )
-            try:
-                await message.delete()
-                logger.info(
-                    f"DELETED_DUPLICATE | chat_id={message.chat.id} | "
-                    f"user_id={user_id} | message_id={message.message_id}"
-                )
-            except Exception as error:
-                logger.exception(
-                    f"DELETE_ERROR_DUPLICATE | chat_id={message.chat.id} | "
-                    f"user_id={user_id} | message_id={message.message_id} | error={error}"
-                )
-            return
 
     # сохраняем текущее сообщение
     recent_messages[user_id].append((now, text))
