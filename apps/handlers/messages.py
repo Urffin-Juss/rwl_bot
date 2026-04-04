@@ -1,6 +1,3 @@
-from collections import defaultdict
-import time
-
 from aiogram import Router
 from aiogram.types import Message
 
@@ -9,7 +6,7 @@ from apps.utils.logger import logger
 
 
 router = Router()
-recent_messages = defaultdict(list)
+
 
 
 async def is_admin(message: Message) -> bool:
@@ -59,13 +56,7 @@ async def handle_all_messages(message: Message) -> None:
         return
 
     text = message.text or message.caption or ""
-    user_id = message.from_user.id
-    now = time.time()
 
-
-
-    # сохраняем текущее сообщение
-    recent_messages[user_id].append((now, text))
 
     has_media = bool(
         message.photo
@@ -81,9 +72,11 @@ async def handle_all_messages(message: Message) -> None:
         extra_score += 2
         extra_reasons.append("media_no_text")
 
-    if has_media and "@" in text:
+    mentions_count = text.count("@")
+
+    if has_media and mentions_count >= 1 and len(text.strip()) < 60:
         extra_score += 2
-        extra_reasons.append("media_username")
+        extra_reasons.append("media_username_short")
 
     result = check_message_for_spam(text)
 

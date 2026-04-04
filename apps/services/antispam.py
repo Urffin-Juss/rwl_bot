@@ -17,9 +17,7 @@ WORK_WORDS = {
     "свободный график",
     "18+",
     "партнер",
-    "команда",
-    "набор",
-    "работа",
+
 }
 
 VPN_WORDS = {
@@ -63,7 +61,6 @@ ADULT_WORDS = {
     "встреча",
     "апартаменты",
     "выезд",
-    "час",
     "конфиденциально",
     "анон",
     "анончик",
@@ -219,4 +216,4 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
             score,
         )
 
-    return SpamCheckResult(False, "", score)
+    return SpamCheckResult(False, ", ".join(reasons), score)
