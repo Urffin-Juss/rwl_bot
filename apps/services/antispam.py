@@ -64,7 +64,6 @@ ADULT_WORDS = {
     "апартаменты",
     "выезд",
     "час",
-    "ночь",
     "конфиденциально",
     "анон",
     "анончик",
@@ -209,7 +208,7 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
         reasons.append(f"adult_suspicious:{', '.join(adult_suspicious_hits)}")
 
     emoji_count = sum(1 for c in text if c in "🔥🚀💰💸📈📊💵💶💷💴❗️‼️")
-    if emoji_count >= 3:
+    if emoji_count >= 7:
         score += 1
         reasons.append("эмодзи")
 
