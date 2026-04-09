@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from aiogram import Router
 from aiogram.types import Message
 
@@ -6,7 +8,7 @@ from apps.utils.logger import logger
 
 
 router = Router()
-
+user_message_counts = defaultdict(int)
 
 
 async def is_admin(message: Message) -> bool:
@@ -57,6 +59,9 @@ async def handle_all_messages(message: Message) -> None:
 
     text = message.text or message.caption or ""
 
+    chat_user_key = (message.chat.id, message.from_user.id)
+    user_message_counts[chat_user_key] += 1
+    user_messages_seen = user_message_counts[chat_user_key]
 
     has_media = bool(
         message.photo
@@ -73,8 +78,9 @@ async def handle_all_messages(message: Message) -> None:
         extra_reasons.append("media_no_text")
 
     mentions_count = text.count("@")
+    text_len = len(text.strip())
 
-    if has_media and mentions_count >= 1 and len(text.strip()) < 60:
+    if has_media and mentions_count >= 1 and text_len < 40:
         extra_score += 2
         extra_reasons.append("media_username_short")
 
@@ -88,6 +94,14 @@ async def handle_all_messages(message: Message) -> None:
 
     if extra_reasons:
         final_reason_parts.append(", ".join(extra_reasons))
+
+    if user_messages_seen >= 20:
+        final_score = max(0, final_score - 1)
+        final_reason_parts.append("trusted_user_20")
+
+    if user_messages_seen >= 50:
+        final_score = max(0, final_score - 1)
+        final_reason_parts.append("trusted_user_50")
 
     final_reason = ", ".join(final_reason_parts)
     verdict = "SPAM" if final_score >= 3 else "OK"

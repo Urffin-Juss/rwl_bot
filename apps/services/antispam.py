@@ -140,7 +140,7 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
     reasons: list[str] = []
 
     if LINK_PATTERN.search(text):
-        score += 3
+        score += 1
         reasons.append("ссылка")
 
     if USERNAME_PATTERN.search(text):
