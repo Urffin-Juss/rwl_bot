@@ -140,6 +140,11 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
     score = 0
     reasons: list[str] = []
 
+    links = LINK_PATTERN.findall(text)
+    if len(links) >= 2:
+        score += 3
+        reasons.append("multi_links")
+
     if LINK_PATTERN.search(text):
         score += 1
         reasons.append("ссылка")
@@ -209,6 +214,20 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
     if emoji_count >= 7:
         score += 1
         reasons.append("эмодзи")
+
+    if "t.me/" in text_lower and "start=" in text_lower:
+        score += 4
+        reasons.append("ref_link")
+
+    if len(text.split()) <= 5 and score >= 2:
+        score += 1
+        reasons.append("short_spam")
+
+    if len(set(links)) == 1 and len(links) > 1:
+        score += 2
+        reasons.append("duplicate_links")
+
+
 
     if score >= 3:
         return SpamCheckResult(

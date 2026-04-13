@@ -97,6 +97,15 @@ async def handle_all_messages(message: Message) -> None:
         extra_score += 2
         extra_reasons.append("media_username_short")
 
+    if has_media and "http" in text:
+        extra_score += 2
+        extra_reasons.append("media_link")
+
+    if has_media and not text.strip():
+        extra_score += 3  # было 2
+
+
+
     result = check_message_for_spam(text)
 
     final_score = result.score + extra_score
