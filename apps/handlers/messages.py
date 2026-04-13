@@ -8,10 +8,16 @@ import time
 from collections import defaultdict
 
 
+
 router = Router()
 user_message_counts = defaultdict(int)
 
 
+user_stats = defaultdict(lambda: {
+    "messages": 0,
+    "spam_hits": 0,
+    "first_seen": time.time(),
+})
 
 async def is_admin(message: Message) -> bool:
     if not message.from_user:
@@ -61,6 +67,15 @@ def build_log_line(
         f"full_name={full_name} | message_id={message_id} | text={safe_text}"
     )
 
+def get_user_trust_level(messages_count: int) -> int:
+    if messages_count >= 100:
+        return 3
+    if messages_count >= 30:
+        return 2
+    if messages_count >= 10:
+        return 1
+    return 0
+
 
 @router.message()
 async def handle_all_messages(message: Message) -> None:
@@ -71,10 +86,14 @@ async def handle_all_messages(message: Message) -> None:
         return
 
     text = message.text or message.caption or ""
+    user_id = message.from_user.id
+    now = time.time()
 
-    chat_user_key = (message.chat.id, message.from_user.id)
-    user_message_counts[chat_user_key] += 1
-    user_messages_seen = user_message_counts[chat_user_key]
+    chat_user_key = (message.chat.id, user_id)
+    stats = user_stats[chat_user_key]
+    stats["messages"] += 1
+
+    trust_level = get_user_trust_level(stats["messages"])
 
     has_media = bool(
         message.photo
@@ -94,15 +113,24 @@ async def handle_all_messages(message: Message) -> None:
     text_len = len(text.strip())
 
     if has_media and mentions_count >= 1 and text_len < 40:
-        extra_score += 2
-        extra_reasons.append("media_username_short")
+        if trust_level == 0:
+            extra_score += 2
+            extra_reasons.append("media_username_short_new_user")
+        elif trust_level == 1:
+            extra_score += 1
+            extra_reasons.append("media_username_short_low_trust")
 
     if has_media and "http" in text:
         extra_score += 2
         extra_reasons.append("media_link")
 
     if has_media and not text.strip():
-        extra_score += 3  # было 2
+        if trust_level == 0:
+            extra_score += 2
+            extra_reasons.append("media_no_text_new_user")
+        elif trust_level == 1:
+            extra_score += 1
+            extra_reasons.append("media_no_text_low_trust")
 
 
 
@@ -154,3 +182,4 @@ async def handle_all_messages(message: Message) -> None:
             f"message_id={message.message_id} | "
             f"user_id={message.from_user.id} | error={error}"
         )
+
