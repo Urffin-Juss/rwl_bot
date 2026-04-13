@@ -1,23 +1,31 @@
+from collections import defaultdict
+import time
+
 from aiogram import Router
 from aiogram.types import Message
 
 from apps.services.antispam import check_message_for_spam
 from apps.utils.logger import logger
-import re
-import time
-from collections import defaultdict
-
 
 
 router = Router()
-user_message_counts = defaultdict(int)
-
 
 user_stats = defaultdict(lambda: {
     "messages": 0,
     "spam_hits": 0,
     "first_seen": time.time(),
 })
+
+
+def get_user_trust_level(messages_count: int) -> int:
+    if messages_count >= 100:
+        return 3
+    if messages_count >= 30:
+        return 2
+    if messages_count >= 10:
+        return 1
+    return 0
+
 
 async def is_admin(message: Message) -> bool:
     if not message.from_user:
@@ -28,17 +36,6 @@ async def is_admin(message: Message) -> bool:
         user_id=message.from_user.id,
     )
     return member.status in ("administrator", "creator")
-
-def normalize_text(text: str) -> str:
-    text = text.lower()
-
-    # убрать повторения букв
-    text = re.sub(r"(.)\1{2,}", r"\1", text)
-
-    # убрать мусор
-    text = re.sub(r"[^a-zа-я0-9\s]", "", text)
-
-    return text
 
 
 def build_log_line(
@@ -67,15 +64,6 @@ def build_log_line(
         f"full_name={full_name} | message_id={message_id} | text={safe_text}"
     )
 
-def get_user_trust_level(messages_count: int) -> int:
-    if messages_count >= 100:
-        return 3
-    if messages_count >= 30:
-        return 2
-    if messages_count >= 10:
-        return 1
-    return 0
-
 
 @router.message()
 async def handle_all_messages(message: Message) -> None:
@@ -87,9 +75,8 @@ async def handle_all_messages(message: Message) -> None:
 
     text = message.text or message.caption or ""
     user_id = message.from_user.id
-    now = time.time()
-
     chat_user_key = (message.chat.id, user_id)
+
     stats = user_stats[chat_user_key]
     stats["messages"] += 1
 
@@ -105,34 +92,32 @@ async def handle_all_messages(message: Message) -> None:
     extra_score = 0
     extra_reasons = []
 
-    if has_media and not text.strip():
-        extra_score += 2
-        extra_reasons.append("media_no_text")
-
     mentions_count = text.count("@")
     text_len = len(text.strip())
+
+    if has_media and not text.strip():
+        if trust_level == 0:
+            extra_score += 2
+            extra_reasons.append("media_no_text_new")
+        elif trust_level == 1:
+            extra_score += 1
+            extra_reasons.append("media_no_text_low")
 
     if has_media and mentions_count >= 1 and text_len < 40:
         if trust_level == 0:
             extra_score += 2
-            extra_reasons.append("media_username_short_new_user")
+            extra_reasons.append("media_username_short_new")
         elif trust_level == 1:
             extra_score += 1
-            extra_reasons.append("media_username_short_low_trust")
+            extra_reasons.append("media_username_short_low")
 
-    if has_media and "http" in text:
-        extra_score += 2
-        extra_reasons.append("media_link")
-
-    if has_media and not text.strip():
+    if has_media and "http" in text.lower():
         if trust_level == 0:
             extra_score += 2
-            extra_reasons.append("media_no_text_new_user")
+            extra_reasons.append("media_link_new")
         elif trust_level == 1:
             extra_score += 1
-            extra_reasons.append("media_no_text_low_trust")
-
-
+            extra_reasons.append("media_link_low")
 
     result = check_message_for_spam(text)
 
@@ -145,13 +130,13 @@ async def handle_all_messages(message: Message) -> None:
     if extra_reasons:
         final_reason_parts.append(", ".join(extra_reasons))
 
-    if user_messages_seen >= 20:
+    if trust_level == 2:
         final_score = max(0, final_score - 1)
-        final_reason_parts.append("trusted_user_20")
+        final_reason_parts.append("trusted_user")
 
-    if user_messages_seen >= 50:
-        final_score = max(0, final_score - 1)
-        final_reason_parts.append("trusted_user_50")
+    if trust_level == 3:
+        final_score = max(0, final_score - 2)
+        final_reason_parts.append("very_trusted_user")
 
     final_reason = ", ".join(final_reason_parts)
     verdict = "SPAM" if final_score >= 3 else "OK"
@@ -171,15 +156,15 @@ async def handle_all_messages(message: Message) -> None:
 
     try:
         await message.delete()
+        stats["spam_hits"] += 1
         logger.info(
             f"DELETED | chat_id={message.chat.id} | "
             f"message_id={message.message_id} | "
-            f"user_id={message.from_user.id} | score={final_score}"
+            f"user_id={user_id} | score={final_score}"
         )
     except Exception as error:
         logger.exception(
             f"DELETE_ERROR | chat_id={message.chat.id} | "
             f"message_id={message.message_id} | "
-            f"user_id={message.from_user.id} | error={error}"
+            f"user_id={user_id} | error={error}"
         )
-
