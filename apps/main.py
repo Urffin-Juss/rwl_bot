@@ -16,13 +16,17 @@ async def main() -> None:
 
     try:
         if settings.proxy_url:
-            session = AiohttpSession(proxy=settings.proxy_url)
+            print(f"Using proxy: {settings.proxy_url}")
+            session = AiohttpSession(
+                proxy=settings.proxy_url,
+            )
             bot = Bot(
                 token=settings.bot_token,
                 session=session,
                 default=DefaultBotProperties(parse_mode=ParseMode.HTML),
             )
         else:
+            print("Using direct connection")
             bot = Bot(
                 token=settings.bot_token,
                 default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -31,7 +35,7 @@ async def main() -> None:
         dp = Dispatcher()
         dp.include_router(messages_router)
 
-        me = await bot.get_me()
+        me = await bot.get_me(request_timeout=90)
         print(f"Бот запущен: @{me.username}")
         print("START POLLING...")
 

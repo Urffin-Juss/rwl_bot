@@ -36,6 +36,14 @@ REVIEW_SPAM = {
     "супер",
     "хорошая",
     "теперь работает",
+    "работает",
+    "реально работает",
+    "помог",
+    "помогло",
+    "помогает",
+    "лучший",
+    "топ",
+    "без перебоев",
 }
 
 DOCUMENT_WORDS = {
@@ -53,30 +61,23 @@ ADULT_WORDS = {
     "эскорт",
     "escort",
     "интим",
-    "18+",
     "досуг",
     "массаж",
     "релакс",
     "без комплексов",
-    "встреча",
     "апартаменты",
     "выезд",
     "конфиденциально",
-    "анон",
-    "анончик",
     "свободна",
     "свободная",
-    "свободен",
 }
 
 ADULT_SUSPICIOUS = {
-    "пиши в лс",
-    "в личку",
+
     "за подробностями",
     "фото в профиле",
     "цены в лс",
     "подробности в лс",
-    "отдых",
     "приятное общение",
 }
 
@@ -144,7 +145,7 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
         reasons.append("ссылка")
 
     if USERNAME_PATTERN.search(text):
-        score += 2
+        score += 1
         reasons.append("username")
 
     work_found = count_matches(text_lower, WORK_WORDS)
@@ -217,3 +218,4 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
         )
 
     return SpamCheckResult(False, ", ".join(reasons), score)
+

@@ -1,14 +1,16 @@
-from collections import defaultdict
-
 from aiogram import Router
 from aiogram.types import Message
 
 from apps.services.antispam import check_message_for_spam
 from apps.utils.logger import logger
+import re
+import time
+from collections import defaultdict
 
 
 router = Router()
 user_message_counts = defaultdict(int)
+
 
 
 async def is_admin(message: Message) -> bool:
@@ -20,6 +22,17 @@ async def is_admin(message: Message) -> bool:
         user_id=message.from_user.id,
     )
     return member.status in ("administrator", "creator")
+
+def normalize_text(text: str) -> str:
+    text = text.lower()
+
+    # убрать повторения букв
+    text = re.sub(r"(.)\1{2,}", r"\1", text)
+
+    # убрать мусор
+    text = re.sub(r"[^a-zа-я0-9\s]", "", text)
+
+    return text
 
 
 def build_log_line(
