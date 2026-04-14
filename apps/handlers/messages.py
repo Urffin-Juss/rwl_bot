@@ -118,6 +118,13 @@ async def handle_all_messages(message: Message) -> None:
         elif trust_level == 1:
             extra_score += 1
             extra_reasons.append("media_link_low")
+    if any(word in text.lower() for word in ["руб", "₽", "р", "тыс"]) and "@" in text:
+        extra_score += 1
+        extra_reasons.append("money_username")
+
+    if "пиши" in text.lower() and "@" in text:
+        extra_score += 1
+        extra_reasons.append("call_to_dm")
 
     result = check_message_for_spam(text)
 
