@@ -95,6 +95,60 @@ async def handle_all_messages(message: Message) -> None:
     mentions_count = text.count("@")
     text_len = len(text.strip())
 
+    has_inline_keyboard = bool(
+        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
+    )
+
+    button_count = 0
+    button_url_count = 0
+    button_texts = []
+
+    if has_inline_keyboard:
+        for row in message.reply_markup.inline_keyboard:
+            for button in row:
+                button_count += 1
+
+                if getattr(button, "url", None):
+                    button_url_count += 1
+
+                if getattr(button, "text", None):
+                    button_texts.append(button.text.lower())
+
+    if has_inline_keyboard:
+        extra_score += 2
+        extra_reasons.append("inline_keyboard")
+
+    if button_count >= 3:
+        extra_score += 1
+        extra_reasons.append("many_buttons")
+
+    if button_url_count >= 2:
+        extra_score += 2
+        extra_reasons.append("button_urls")
+
+    adult_button_words = {
+        "18+",
+        "video nóng",
+        "clip",
+        "nữ sinh",
+        "hot",
+        "watch",
+        "sex",
+    }
+
+    joined_button_text = " ".join(button_texts)
+
+    for word in adult_button_words:
+        if word in joined_button_text:
+            extra_score += 2
+            extra_reasons.append(f"adult_button:{word}")
+
+    is_forwarded = bool(message.forward_origin)
+
+    if is_forwarded and has_inline_keyboard:
+        extra_score += 1
+        extra_reasons.append("forwarded_with_buttons")
+
     if has_media and not text.strip():
         if trust_level == 0:
             extra_score += 2
