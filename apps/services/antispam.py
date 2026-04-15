@@ -140,6 +140,23 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
     score = 0
     reasons: list[str] = []
 
+    money_offer_patterns = [
+        "жми сюда",
+        "если интересно",
+        "2-3 часа",
+        "1-5 часов",
+        "5 000",
+        "5000",
+        "6 000",
+        "6000",
+    ]
+
+    money_offer_hits = [p for p in money_offer_patterns if p in text_lower]
+
+    if money_offer_hits:
+        score += len(money_offer_hits)
+        reasons.append(f"offer:{', '.join(money_offer_hits)}")
+
     links = LINK_PATTERN.findall(text)
     if len(links) >= 2:
         score += 3
