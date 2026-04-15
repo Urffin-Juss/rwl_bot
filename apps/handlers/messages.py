@@ -176,6 +176,21 @@ async def handle_all_messages(message: Message) -> None:
 
     is_forwarded = bool(message.forward_origin)
 
+    has_inline_keyboard = bool(
+        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
+    )
+
+    if has_inline_keyboard and trust_level <= 1:
+        extra_score += 2
+        extra_reasons.append("inline_keyboard")
+
+    text_lower = text.lower()
+
+    if has_inline_keyboard and trust_level <= 1:
+        if any(word in text_lower for word in ["в день", "пиши", "18+", "доход", "заработок"]):
+            extra_score += 2
+            extra_reasons.append("button_spam_offer")
+
     if is_forwarded and has_inline_keyboard:
         extra_score += 1
         extra_reasons.append("forwarded_with_buttons")
