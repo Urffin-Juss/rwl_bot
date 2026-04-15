@@ -74,6 +74,7 @@ async def handle_all_messages(message: Message) -> None:
         return
 
     text = message.text or message.caption or ""
+    text_lower = text.lower()
     user_id = message.from_user.id
     chat_user_key = (message.chat.id, user_id)
 
@@ -81,6 +82,9 @@ async def handle_all_messages(message: Message) -> None:
     stats["messages"] += 1
 
     trust_level = get_user_trust_level(stats["messages"])
+
+
+
 
     has_media = bool(
         message.photo
@@ -137,6 +141,33 @@ async def handle_all_messages(message: Message) -> None:
     }
 
     joined_button_text = " ".join(button_texts)
+
+    is_forwarded = bool(message.forward_origin)
+    is_reply = bool(message.reply_to_message)
+    has_inline_keyboard = bool(
+        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
+    )
+
+    review_words = {
+        "спасибо",
+        "реально",
+        "рабочий",
+        "работает",
+        "загружается",
+        "снова загружается",
+        "оказался рабочий",
+    }
+
+    review_hits = [word for word in review_words if word in text_lower]
+
+    if review_hits and trust_level <= 1:
+        if is_forwarded or is_reply or has_inline_keyboard:
+            extra_score += 2
+            extra_reasons.append("embedded_review")
+
+        if len(text.split()) <= 10:
+            extra_score += 1
+            extra_reasons.append("short_review")
 
     for word in adult_button_words:
         if word in joined_button_text:
