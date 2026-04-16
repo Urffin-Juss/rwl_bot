@@ -226,6 +226,8 @@ async def handle_all_messages(message: Message) -> None:
         extra_score += 1
         extra_reasons.append("call_to_dm")
 
+
+
     result = check_message_for_spam(text)
 
     final_score = result.score + extra_score

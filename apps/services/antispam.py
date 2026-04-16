@@ -31,7 +31,6 @@ VPN_WORDS = {
 }
 
 REVIEW_SPAM = {
-    "спасибо",
     "реально работает",
     "супер",
     "хорошая",
@@ -142,7 +141,6 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
 
     money_offer_patterns = [
         "жми сюда",
-        "если интересно",
         "2-3 часа",
         "1-5 часов",
         "5 000",
@@ -153,8 +151,12 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
 
     money_offer_hits = [p for p in money_offer_patterns if p in text_lower]
 
+    if message.reply_to_message:
+        score -= 1
+
     if money_offer_hits:
         score += len(money_offer_hits)
+        score += 3
         reasons.append(f"offer:{', '.join(money_offer_hits)}")
 
     links = LINK_PATTERN.findall(text)
@@ -243,6 +245,32 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
     if len(set(links)) == 1 and len(links) > 1:
         score += 2
         reasons.append("duplicate_links")
+
+    review_patterns = [
+        "работает",
+        "реально работает",
+        "очень хороший",
+        "всем советую",
+        "лучший",
+        "помогло",
+    ]
+
+    if "спасибо" in text_lower and any(p in text_lower for p in review_patterns):
+        score += 2
+        reasons.append("review_spam")
+
+    normal_context_patterns = [
+        "что",
+        "напомнил",
+        "сказал",
+        "ответил",
+    ]
+
+    if "спасибо" in text_lower and any(p in text_lower for p in normal_context_patterns):
+        score -= 2
+        reasons.append("normal_thanks")
+
+
 
 
 
