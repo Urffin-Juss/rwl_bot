@@ -80,11 +80,9 @@ async def handle_all_messages(message: Message) -> None:
 
     stats = user_stats[chat_user_key]
     stats["messages"] += 1
+    user_messages_seen = stats["messages"]
 
-    trust_level = get_user_trust_level(stats["messages"])
-
-
-
+    trust_level = get_user_trust_level(user_messages_seen)
 
     has_media = bool(
         message.photo
@@ -93,15 +91,18 @@ async def handle_all_messages(message: Message) -> None:
         or message.animation
     )
 
+    has_inline_keyboard = bool(
+        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
+    )
+
+    is_forwarded = bool(message.forward_origin)
+    is_reply = bool(message.reply_to_message)
+
     extra_score = 0
     extra_reasons = []
 
     mentions_count = text.count("@")
     text_len = len(text.strip())
-
-    has_inline_keyboard = bool(
-        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
-    )
 
     button_count = 0
     button_url_count = 0
@@ -142,11 +143,10 @@ async def handle_all_messages(message: Message) -> None:
 
     joined_button_text = " ".join(button_texts)
 
-    is_forwarded = bool(message.forward_origin)
-    is_reply = bool(message.reply_to_message)
-    has_inline_keyboard = bool(
-        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
-    )
+    for word in adult_button_words:
+        if word in joined_button_text:
+            extra_score += 2
+            extra_reasons.append(f"adult_button:{word}")
 
     review_words = {
         "спасибо",
@@ -168,23 +168,6 @@ async def handle_all_messages(message: Message) -> None:
         if len(text.split()) <= 10:
             extra_score += 1
             extra_reasons.append("short_review")
-
-    for word in adult_button_words:
-        if word in joined_button_text:
-            extra_score += 2
-            extra_reasons.append(f"adult_button:{word}")
-
-    is_forwarded = bool(message.forward_origin)
-
-    has_inline_keyboard = bool(
-        message.reply_markup and getattr(message.reply_markup, "inline_keyboard", None)
-    )
-
-    if has_inline_keyboard and trust_level <= 1:
-        extra_score += 2
-        extra_reasons.append("inline_keyboard")
-
-    text_lower = text.lower()
 
     if has_inline_keyboard and trust_level <= 1:
         if any(word in text_lower for word in ["в день", "пиши", "18+", "доход", "заработок"]):
@@ -211,26 +194,38 @@ async def handle_all_messages(message: Message) -> None:
             extra_score += 1
             extra_reasons.append("media_username_short_low")
 
-    if has_media and "http" in text.lower():
+    if has_media and "http" in text_lower:
         if trust_level == 0:
             extra_score += 2
             extra_reasons.append("media_link_new")
         elif trust_level == 1:
             extra_score += 1
             extra_reasons.append("media_link_low")
-    if any(word in text.lower() for word in ["руб", "₽", "р", "тыс"]) and "@" in text:
+
+    if any(word in text_lower for word in ["руб", "₽", "тыс"]) and "@" in text:
         extra_score += 1
         extra_reasons.append("money_username")
 
-    if "пиши" in text.lower() and "@" in text:
+    if "пиши" in text_lower and "@" in text:
         extra_score += 1
         extra_reasons.append("call_to_dm")
 
+    # reply — сильный сигнал нормального общения
+    if is_reply:
+        extra_score -= 2
+        extra_reasons.append("reply_context")
 
+    # защита старых участников
+    if user_messages_seen >= 20:
+        extra_score -= 2
+        extra_reasons.append("trusted_user")
 
     result = check_message_for_spam(text)
 
     final_score = result.score + extra_score
+    if final_score < 0:
+        final_score = 0
+
     final_reason_parts = []
 
     if result.reason:
@@ -241,11 +236,11 @@ async def handle_all_messages(message: Message) -> None:
 
     if trust_level == 2:
         final_score = max(0, final_score - 1)
-        final_reason_parts.append("trusted_user")
+        final_reason_parts.append("trusted_user_lvl2")
 
     if trust_level == 3:
         final_score = max(0, final_score - 2)
-        final_reason_parts.append("very_trusted_user")
+        final_reason_parts.append("trusted_user_lvl3")
 
     final_reason = ", ".join(final_reason_parts)
     verdict = "SPAM" if final_score >= 3 else "OK"

@@ -151,8 +151,9 @@ def check_message_for_spam(text: str | None) -> SpamCheckResult:
 
     money_offer_hits = [p for p in money_offer_patterns if p in text_lower]
 
-    if message.reply_to_message:
-        score -= 1
+
+
+
 
     if money_offer_hits:
         score += len(money_offer_hits)
