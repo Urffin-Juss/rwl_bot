@@ -84,6 +84,17 @@ async def handle_all_messages(message: Message) -> None:
 
     trust_level = get_user_trust_level(user_messages_seen)
 
+    is_offer = False
+
+    if any(word in text_lower for word in ["в личку", "в лс", "подробности", "пиши"]):
+        is_offer = True
+
+    if any(word in text_lower for word in ["руб", "₽", "тыс"]):
+        is_offer = True
+
+    if "@" in text:
+        is_offer = True
+
     has_media = bool(
         message.photo
         or message.video
@@ -216,7 +227,7 @@ async def handle_all_messages(message: Message) -> None:
         extra_reasons.append("reply_context")
 
     # защита старых участников
-    if user_messages_seen >= 20:
+    if user_messages_seen >= 20 and not is_offer:
         extra_score -= 2
         extra_reasons.append("trusted_user")
 
